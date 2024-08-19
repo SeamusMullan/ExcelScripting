@@ -105,6 +105,35 @@ class App(ctk.CTk):
         self.label = ctk.CTkLabel(self.frame, text="Settings")
         self.label.pack(padx=10, pady=0)
         
+        
+        # NOTE: We need to make a table (like Naviswork Selection Inspector) to represent name conversions, then carry them out using external functions (fns) 
+        
+        
+        
+        
+        
+        
+        
+        # Output Column Names
+        
+        # (E) ID
+        # (I) GUID
+        # (E) Category
+        # (C) Location (or KGE_Location)
+        # (E) Name
+        # (E) Size
+        # (E) Rod Length
+        # (E) Length
+        #     - Any other length values too (Length, length, Length 2, etc.)
+        # (E) Unistrut Length
+        # (+) Units (mm/No.)
+        # (E) Angle
+        #     - Any other angles too (Angle, angle, Angle 2, etc.)
+        # (E) Service type
+        # (C) Raceway Name
+        # (C) Raceway Ref. Number 
+        
+        
         # END Settings Tab ==================================================================================================
         
         
