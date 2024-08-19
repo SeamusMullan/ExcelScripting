@@ -3,6 +3,7 @@ from tkinter import filedialog
 import time
 import asyncio
 import threading
+import dictionaryFrame as df
 import functions as fns  # Abstracted Functionality
 
 ctk.set_appearance_mode("System")
@@ -30,6 +31,10 @@ class App(ctk.CTk):
         self.mainTab = self.tabview.add("Main")
         self.settingsTab = self.tabview.add("Settings")
         self.creditsTab = self.tabview.add("Credits")
+        
+        # Settings variables
+        self.num_rows_settings = 10
+        
         
          # Create asyncio event loop
         self.loop = asyncio.new_event_loop()
@@ -99,6 +104,13 @@ class App(ctk.CTk):
         
         self.settingsTab.grid_columnconfigure(0, weight=1)
 
+
+        self.addRowButton = ctk.CTkButton(self.settingsTab, text="+", command=self.add_settings_row_callback)
+        self.addRowButton.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        
+        self.removeRowButton = ctk.CTkButton(self.settingsTab, text="-", command=self.remove_settings_row_callback, fg_color="#EE0000", hover_color="#660000")
+        self.removeRowButton.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+
         # CTkLabel in a CTkFrame
         self.frame = ctk.CTkFrame(self.settingsTab)
         self.frame.grid(row=8, column=0, padx=10, pady=0, sticky="ew")
@@ -108,7 +120,8 @@ class App(ctk.CTk):
         
         # NOTE: We need to make a table (like Naviswork Selection Inspector) to represent name conversions, then carry them out using external functions (fns) 
         
-        
+        self.nameUpdate = df.DictionaryFrame(self.settingsTab, num_rows=self.num_rows_settings)
+        self.nameUpdate.grid(row=9, column=0, padx=10, pady=0, sticky="ew")
         
         
         
@@ -195,6 +208,21 @@ class App(ctk.CTk):
         self.progressBar.set(amount)
 
 
+    def add_settings_row_callback(self):
+        asyncio.run_coroutine_threadsafe(self.add_settings_row(), self.loop)
+        
+    async def add_settings_row(self):
+        self.num_rows_settings += 1
+        await self.nameUpdate._draw()
+        fns.log(self.num_rows_settings, 'log')
+        
+    def remove_settings_row_callback(self):
+        asyncio.run_coroutine_threadsafe(self.remove_settings_row(), self.loop)
+        
+    async def remove_settings_row(self):
+        self.num_rows_settings -= 1
+        await self.nameUpdate._draw()
+        fns.log(self.num_rows_settings, 'log')
 
 
 

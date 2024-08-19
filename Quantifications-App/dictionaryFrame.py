@@ -1,10 +1,13 @@
 from typing import Union, Tuple, List, Optional, Any
 
+import customtkinter as ctk
+
 from customtkinter.windows.widgets.core_rendering import CTkCanvas
 from customtkinter.windows.widgets.theme import ThemeManager
 from customtkinter.windows.widgets.core_rendering import DrawEngine
 from customtkinter.windows.widgets.core_widget_classes import CTkBaseClass
 
+import functions as fns
 
 class DictionaryFrame(CTkBaseClass):
     
@@ -25,31 +28,40 @@ class DictionaryFrame(CTkBaseClass):
 
                  background_corner_colors: Union[Tuple[Union[str, Tuple[str, str]]], None] = None,
                  overwrite_preferred_drawing_method: Union[str, None] = None,
+                 num_rows: int = 10,
+                 num_cols: int = 2,
                  **kwargs):
 
         # transfer basic functionality (_bg_color, size, __appearance_mode, scaling) to CTkBaseClass
         super().__init__(master=master, bg_color=bg_color, width=width, height=height, **kwargs)
 
+
+        self.num_rows = num_rows
+        self.num_cols = num_cols
+        fns.log(f"{self.num_rows} Rows and {self.num_cols} Columns", 'message')
+        self.text_boxes = []
+
+
         # color
-        self._border_color = ThemeManager.theme["DictionaryFrame"]["border_color"] if border_color is None else self._check_color_type(border_color)
+        self._border_color = ThemeManager.theme["CTkFrame"]["border_color"] if border_color is None else self._check_color_type(border_color)
 
         # determine fg_color of frame
         if fg_color is None:
             if isinstance(self.master, DictionaryFrame):
-                if self.master._fg_color == ThemeManager.theme["DictionaryFrame"]["fg_color"]:
-                    self._fg_color = ThemeManager.theme["DictionaryFrame"]["top_fg_color"]
+                if self.master._fg_color == ThemeManager.theme["CTkFrame"]["fg_color"]:
+                    self._fg_color = ThemeManager.theme["CTkFrame"]["top_fg_color"]
                 else:
-                    self._fg_color = ThemeManager.theme["DictionaryFrame"]["fg_color"]
+                    self._fg_color = ThemeManager.theme["CTkFrame"]["fg_color"]
             else:
-                self._fg_color = ThemeManager.theme["DictionaryFrame"]["fg_color"]
+                self._fg_color = ThemeManager.theme["CTkFrame"]["fg_color"]
         else:
             self._fg_color = self._check_color_type(fg_color, transparency=True)
 
         self._background_corner_colors = background_corner_colors  # rendering options for DrawEngine
 
         # shape
-        self._corner_radius = ThemeManager.theme["DictionaryFrame"]["corner_radius"] if corner_radius is None else corner_radius
-        self._border_width = ThemeManager.theme["DictionaryFrame"]["border_width"] if border_width is None else border_width
+        self._corner_radius = ThemeManager.theme["CTkFrame"]["corner_radius"] if corner_radius is None else corner_radius
+        self._border_width = ThemeManager.theme["CTkFrame"]["border_width"] if border_width is None else border_width
 
         self._canvas = CTkCanvas(master=self,
                                  highlightthickness=0,
@@ -61,6 +73,7 @@ class DictionaryFrame(CTkBaseClass):
         self._overwrite_preferred_drawing_method = overwrite_preferred_drawing_method
 
         self._draw(no_color_updates=True)
+        self._create_text_boxes()
 
     def winfo_children(self) -> List[any]:
         """
@@ -88,6 +101,48 @@ class DictionaryFrame(CTkBaseClass):
         self._canvas.configure(width=self._apply_widget_scaling(self._desired_width),
                                height=self._apply_widget_scaling(self._desired_height))
         self._draw()
+
+
+    def set_num_rows(self, num):
+        self.num_rows = num
+        
+    def set_num_cols(self, num):
+        self.num_cols = num
+
+# Draw text boxes
+    def _create_text_boxes(self):
+        col_names = ["Input", "Output"]
+    
+        # Create column labels
+        for col in range(self.num_cols):
+            label = ctk.CTkLabel(self, text=col_names[col] if col < len(col_names) else f"Column {col+1}")
+            label.grid(row=0, column=col, padx=5, pady=5)
+            
+        for row in range(self.num_rows):
+            row_boxes = []
+            for col in range(self.num_cols):
+                text_box = ctk.CTkEntry(self, width=self._current_width // self.num_cols, height=30)
+                text_box.grid(row=row+1, column=col, padx=5, pady=5)
+                row_boxes.append(text_box)
+            self.text_boxes.append(row_boxes)
+        # self._canvas.tag_lower("inner_parts")  # maybe unnecessary, I don't know ???
+        # self._canvas.tag_lower("border_parts")
+
+    def get_data(self) -> dict:
+        data = {}
+        for row in self.text_boxes:
+            key = row[0].get()
+            value = row[1].get()
+            if key:
+                data[key] = value
+        return data
+
+    def set_data(self, data: dict):
+        for i, (key, value) in enumerate(data.items()):
+            if i < self.num_rows:
+                self.text_boxes[i][0].insert(0, key)
+                self.text_boxes[i][1].insert(0, value)
+
 
     def _draw(self, no_color_updates=False):
         super()._draw(no_color_updates)
@@ -126,11 +181,7 @@ class DictionaryFrame(CTkBaseClass):
                                     outline=self._apply_appearance_mode(self._border_color))
             self._canvas.configure(bg=self._apply_appearance_mode(self._bg_color))
             
-        # Draw dropdowns
-
-        # self._canvas.tag_lower("inner_parts")  # maybe unnecessary, I don't know ???
-        # self._canvas.tag_lower("border_parts")
-
+    
     def configure(self, require_redraw=False, **kwargs):
         if "fg_color" in kwargs:
             self._fg_color = self._check_color_type(kwargs.pop("fg_color"), transparency=True)
