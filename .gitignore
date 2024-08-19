@@ -4,3 +4,4 @@
 *.csv
 *.txt
 *.xlsx
+!requirements.txt
