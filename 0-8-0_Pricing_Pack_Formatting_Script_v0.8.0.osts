@@ -1,0 +1,233 @@
+/*
+Pricing Pack Generation Version 0.8.0 (August 2024)
+
+Written by Seamus Mullan @ Kirby Group Engineering
+
+Email: smulan@kirbygroup.com
+Intel WWID: 12277846
+	
+
+To-Do
+======
+	
+Fix length column deletion after merging
+Implement / fix angle data merging
+PivotTable complete setup (currently just table options)
+items with a digit at the end need to be renamed (Conduit Box 2, MIDAS Gas Detector 7, etc.)
+	
+Continuous changes
+===================
+	
+Implementing extra changes to names (note: usually introduced by revit / modeller)
+
+
+===============================================================================================
+Navisworks CSV Export Legend
+===============================================================================================
+E -> Element
+I -> Item
+C -> Custom
++ -> Not from Navisworks / Created in this script
+	
+Required Columns in same order as Navisworks Selection Inspector
+Indented sections -> all variants / occurances of a measurement
+	
+(E) ID
+(I) GUID
+(E) Category
+(C) Location (or KGE_Location)
+(E) Name
+(E) Size
+(E) Rod Length
+(E) Length
+	- Any other length values too (Length, length, Length 2, etc.)
+(E) Unistrut Length
+(+) Units (mm/No.)
+(E) Angle
+	- Any other angles too (Angle, angle, Angle 2, etc.)
+(E) Service type
+(C) Raceway Name
+(C) Raceway Ref. Number 
+	
+===============================================================================================
+	
+Ideally,the csv we are importing should have all of the data in the order shown here,
+excluding any columns that get created in the script (marked with '+')
+	
+Repeated data should be merged into a single column and placed according to the above legend
+	
+===============================================================================================
+*/
+
+function log(msg: string) {
+	let loggingOn = 0;
+	if (loggingOn === 1) {
+		console.log(msg);
+	}
+}
+
+function removeControlCharacters(str: string): string {
+	// This regex matches all control characters
+	const controlCharsRegex = /[\u0000-\u001F\u007F-\u009F]/g;
+	return str.replace(controlCharsRegex, '');
+}
+
+function main(workbook: ExcelScript.Workbook) {
+	// Get the active worksheet
+	let sheet = workbook.getActiveWorksheet();
+	let usedRange = sheet.getUsedRange();
+
+	// Optimize header processing
+	let headers = usedRange.getRow(0);
+	let headerValues = headers.getValues()[0];
+
+	// Process headers once
+	headerValues = headerValues.map(header => {
+		if (typeof header === 'string') {
+			return header
+				.replace(/Element|Item|Custom|KGE_/gi, "")
+				.replace("\n", "")
+				.replace("\\r\\n", "");
+		}
+		return header.toString();
+	});
+	headers.setValues([headerValues]);
+
+	// Set row height and apply autofilter
+	headers.getFormat().setRowHeight(25);
+	sheet.getAutoFilter().apply(headers);
+	sheet.getFreezePanes().freezeRows(1);
+
+	// Find important column indices
+	let nameIndex = headerValues.findIndex(header =>
+		typeof header === 'string' && header.toLowerCase().includes("name")
+	);
+	let unistrutIndex = headerValues.findIndex(header =>
+		typeof header === 'string' && header.toLowerCase().includes("unistrut")
+	);
+	let angleIndex = headerValues.findIndex(header =>
+		typeof header === 'string' && header.toLowerCase().includes("angle")
+	);
+
+	if (nameIndex === -1 || unistrutIndex === -1 || angleIndex === -1) {
+		throw new Error("Required columns not found");
+	}
+
+	// Process data in bulk
+	let values = usedRange.getValues();
+
+	// Update names
+	for (let i = 1; i < values.length; i++) {
+		let name = values[i][nameIndex].toString();
+		name = name.replace("P1428-H-", "M1116")
+			.replace("M12", "M10")
+			.replace("P1062", "P1020");
+		// .replace("Casework 1", "Casework"); // covered by next section
+
+		// if the name is in the form [words] [number], remove the number
+		// a.k.a, only remove number when seperated by a space, eg:
+		// Casework 2 -> Casework
+		// MIDAS_Plate_2 -> MIDAS_Plate_2
+		const parts = name.split(" ");
+		if (parts.length > 1 && /^\d+$/.test(parts[parts.length - 1])) {
+			name = parts.slice(0, -1).join(" ");
+		}
+
+		values[i][nameIndex] = name;
+	}
+
+	// Process lengths and angles
+	for (let col = 0; col < headerValues.length; col++) {
+		const header = headerValues[col];
+		log("On header " + header);
+		if (header.toString().toLowerCase().match("length")) {
+			log("Header " + header + " is a length header");
+			for (let row = 1; row < values.length; row++) {
+				values[row][col] = values[row][col].toString().replace(" mm", "");
+				let value = values[row][col];
+				if (value > 1) {
+					values[row][unistrutIndex] = value.toString().replace(" mm", "");
+					log("Value " + value + " added to unistrut column on row " + row + " from column " + header);
+				}
+			}
+		} else if (header.toString().toLowerCase().match("angle") && col !== angleIndex) {
+			for (let row = 1; row < values.length; row++) {
+				let value = values[row][col];
+				if (typeof value === "number" && value > 1) {
+					values[row][angleIndex] = value;
+				}
+			}
+		}
+
+	}
+
+	// Fill blank cells in Unistrut column with 1
+	for (let i = 1; i < values.length; i++) {
+		if (values[i][unistrutIndex] === "") {
+			values[i][unistrutIndex] = 1;
+		}
+	}
+
+	// Write processed data back to the sheet
+	usedRange.setValues(values);
+
+	// Create table
+	let table = workbook.addTable(usedRange, true);
+
+	// Add "Units (mm/No.)" column
+	let unitsIndex = table.addColumn(angleIndex + 1, undefined, "Units (mm/No.)").getIndex();
+
+	// remove any length column (except unistrut)
+	for (let col = 0; col < headerValues.length; col++) {
+		let header = headerValues[col];
+		header = removeControlCharacters(header.toString());
+		if (header.toString().toLowerCase().match("length") && !header.toString().toLowerCase().match("unistrut")) {
+			let column = table.getColumnByName(header);
+			column.delete()
+			col--;
+		}
+	}
+
+	// update important column indices
+	nameIndex = headerValues.findIndex(header =>
+		typeof header === 'string' && header.toLowerCase().includes("name")
+	);
+	unistrutIndex = headerValues.findIndex(header =>
+		typeof header === 'string' && header.toLowerCase().includes("unistrut")
+	);
+	angleIndex = headerValues.findIndex(header =>
+		typeof header === 'string' && header.toLowerCase().includes("angle")
+	);
+
+	if (nameIndex === -1 || unistrutIndex === -1 || angleIndex === -1) {
+		throw new Error("Required columns not found");
+	}
+
+
+
+	// Set formula for Units column
+	let unitsFormula = `=IF(INDIRECT(ADDRESS(ROW(),COLUMN()-1))>1,"mm","No.")`;
+	let unitsColumn = table.getColumn(unitsIndex);
+	unitsColumn.getRangeBetweenHeaderAndTotal().setFormulaLocal(unitsFormula);
+
+	// Rename worksheet
+	sheet.setName("Quantifications");
+
+	// Format columns
+	let format = table.getRange().getFormat();
+	format.autofitColumns();
+	format.setVerticalAlignment(ExcelScript.VerticalAlignment.center);
+	format.setIndentLevel(0);
+	format.setHorizontalAlignment(ExcelScript.HorizontalAlignment.center);
+
+	// Create Pivot Table
+	let pivotSheet = workbook.addWorksheet("Pivot Table");
+	let pivotTable = pivotSheet.addPivotTable("PivotTable1", table.getRange(), "A3");
+
+	// Configure Pivot Table
+	let unitsHierarchy = pivotTable.getHierarchy("Units (mm/No.)");
+	if (unitsHierarchy) {
+		pivotTable.addColumnHierarchy(unitsHierarchy);
+	}
+	pivotTable.getLayout().setShowRowGrandTotals(false);
+}

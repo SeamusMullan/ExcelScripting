@@ -1,0 +1,6 @@
+/Quantifications-App/venv
+/Quantifications-App/__pycache__
+/.vscode
+*.csv
+*.txt
+*.xlsx
